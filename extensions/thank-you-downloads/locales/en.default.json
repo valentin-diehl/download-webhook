@@ -1,6 +1,6 @@
 {
   "downloads": {
-    "heading": "Your Downloads",
-    "button": "Download {{name}}"
+    "heading": "You can download your assets through the download links below",
+    "download_all": "Download all files"
   }
 }

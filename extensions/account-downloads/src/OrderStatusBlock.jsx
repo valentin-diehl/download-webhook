@@ -1,6 +1,6 @@
 import '@shopify/ui-extensions/preact';
 import { render } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useMemo, useCallback } from 'preact/hooks';
 
 const WORKER_URL = 'https://downloads.new-renew.shop';
 const MAX_ATTEMPTS = 6;
@@ -23,78 +23,146 @@ function isExpired(url) {
   }
 }
 
-function anyExpired(downloads) {
-  return downloads.some(d => isExpired(d.url));
+// Handles both old {downloads:[]} and new {products:[]} worker response formats.
+function normaliseResponse(data) {
+  if (data.products) return data.products;
+  if (data.downloads) {
+    const map = new Map();
+    for (const d of data.downloads) {
+      if (!map.has(d.name)) map.set(d.name, { title: d.name, image: null, files: [] });
+      map.get(d.name).files.push({ filename: d.filename ?? d.name, url: d.url });
+    }
+    return [...map.values()];
+  }
+  return [];
+}
+
+function anyExpired(products) {
+  return products.some(p => p.files.some(f => isExpired(f.url)));
+}
+
+function getOrderId() {
+  const gid = shopify.order?.value?.id;
+  if (!gid) return null;
+  const id = String(gid).split('/').pop();
+  return /^\d+$/.test(id) ? id : null;
 }
 
 function DownloadSection() {
-  const [downloads, setDownloads] = useState(null);
+  const [products, setProducts] = useState(null);
   const [expired, setExpired] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-
-  const getOrderId = () => {
-    const gid = shopify.order?.value?.id;
-    return gid ? String(gid).split('/').pop() : null;
-  };
 
   useEffect(() => {
     const id = getOrderId();
     if (!id) return;
     fetchWithRetry(`${WORKER_URL}/downloads?order_id=${id}`, (data) => {
-      setDownloads(data);
+      setProducts(data);
       setExpired(anyExpired(data));
     });
   }, []);
 
-  // Live expiry check every 10 s — catches expiry while page stays open.
+  // Catches expiry while the page stays open.
   useEffect(() => {
-    if (!downloads?.length || expired) return;
+    if (!products?.length || expired) return;
     const interval = setInterval(() => {
-      if (anyExpired(downloads)) setExpired(true);
+      if (anyExpired(products)) setExpired(true);
     }, 10_000);
     return () => clearInterval(interval);
-  }, [downloads, expired]);
+  }, [products, expired]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     const id = getOrderId();
     if (!id) return;
     setRefreshing(true);
     fetchWithRetry(`${WORKER_URL}/downloads?order_id=${id}&refresh=1`, (data) => {
-      setDownloads(data);
-      setExpired(anyExpired(data));
+      if (data.length) {
+        setProducts(data);
+        setExpired(anyExpired(data));
+      }
       setRefreshing(false);
     });
-  };
+  }, []);
 
-  if (!downloads?.length) return null;
+  const allUrls = useMemo(
+    () => (products ?? []).flatMap(p => p.files.map(f => f.url)),
+    [products],
+  );
+
+  // Stagger opens to avoid popup-blockers dropping concurrent window.open calls.
+  const downloadAll = useCallback(() => {
+    allUrls.forEach((url, i) => {
+      setTimeout(() => window.open(url, '_blank'), i * 300);
+    });
+  }, [allUrls]);
+
+  if (!products?.length) return null;
+
+  const translate = shopify.i18n.translate;
+  const heading = expired
+    ? translate('downloads.heading_expired')
+    : translate('downloads.heading');
 
   return (
-    <s-banner heading={shopify.i18n.translate('downloads.heading')}>
-      <s-stack gap="base">
-        {!expired && downloads.map(d => (
-          <s-button key={d.url} href={d.url} target="_blank" variant="secondary">
-            {shopify.i18n.translate('downloads.button', { name: d.name })}
-          </s-button>
-        ))}
-        {expired && (
-          <s-button variant="secondary" onClick={handleRefresh} loading={refreshing}>
-            {shopify.i18n.translate('downloads.refresh')}
-          </s-button>
-        )}
-      </s-stack>
-    </s-banner>
+    <s-stack direction="block" gap="base">
+      <s-heading level="1">{heading}</s-heading>
+
+      {!expired && (
+        <s-stack direction="block" gap="small-200">
+          {products.map((product, i) => (
+            <s-box key={i} borderRadius="large-100" borderWidth="base" padding="base" background="base">
+              <s-stack direction="inline" gap="base" alignItems="center">
+                {product.image && (
+                  <s-product-thumbnail src={product.image} alt={product.title} size="base" />
+                )}
+                <s-stack direction="block" gap="small-500">
+                  <s-text type="strong">{product.title}</s-text>
+                  <s-stack direction="block" gap="small-500">
+                    {product.files.map((file, j) => (
+                      <s-link key={j} href={file.url} target="_blank" tone="auto">
+                        <s-stack direction="inline" gap="small-300" alignItems="center">
+                          <s-box borderRadius="max" borderWidth="base" padding="small-400">
+                            <s-icon type="arrow-down" size="small-200" tone="auto" />
+                          </s-box>
+                          {file.filename}
+                        </s-stack>
+                      </s-link>
+                    ))}
+                  </s-stack>
+                </s-stack>
+              </s-stack>
+            </s-box>
+          ))}
+        </s-stack>
+      )}
+
+      {expired && (
+        <s-button variant="primary" onClick={handleRefresh} loading={refreshing} inlineSize="fill">
+          {translate('downloads.refresh')}
+        </s-button>
+      )}
+
+      {!expired && allUrls.length > 1 && (
+        <s-button variant="primary" onClick={downloadAll} inlineSize="fill">
+          {translate('downloads.download_all')}
+        </s-button>
+      )}
+    </s-stack>
   );
 }
 
 function fetchWithRetry(url, onSuccess, attempts = 0) {
   fetch(url)
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    })
     .then(data => {
       if (data.error === 'Order not found' && attempts < MAX_ATTEMPTS) {
         setTimeout(() => fetchWithRetry(url, onSuccess, attempts + 1), RETRY_DELAY_MS);
         return;
       }
-      onSuccess(data.downloads ?? []);
+      onSuccess(normaliseResponse(data));
     })
     .catch(() => {
       if (attempts < MAX_ATTEMPTS) {

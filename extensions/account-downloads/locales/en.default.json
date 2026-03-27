@@ -1,7 +1,8 @@
 {
   "downloads": {
-    "heading": "Your Downloads",
-    "button": "Download {{name}}",
-    "refresh": "Generate new download links"
+    "heading": "You can download your assets through the download links below",
+    "heading_expired": "Your download links have expired. Please generate new ones by clicking the button below.",
+    "refresh": "Generate new download links",
+    "download_all": "Download all files"
   }
 }
