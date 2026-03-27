@@ -2,7 +2,7 @@ import '@shopify/ui-extensions/preact';
 import { render } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 
-const WORKER_URL = 'https://nr-shop-download-worker.newrenew-shop.workers.dev';
+const WORKER_URL = 'https://downloads.new-renew.shop';
 const MAX_ATTEMPTS = 6;
 const RETRY_DELAY_MS = 2500;
 
