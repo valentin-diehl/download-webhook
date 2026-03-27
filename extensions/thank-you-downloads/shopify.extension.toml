@@ -1,7 +1,7 @@
 api_version = "2026-01"
 
 [[extensions]]
-name = "thank-you-downloads"
+name = "Thank-you Downloads"
 handle = "thank-you-downloads"
 type = "ui_extension"
 uid = "7b6e438f-a1cc-2763-f75f-615d7ce0c60000a5ee27"

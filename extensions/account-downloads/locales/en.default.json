@@ -1,6 +1,7 @@
 {
   "downloads": {
     "heading": "Your Downloads",
-    "button": "Download {{name}}"
+    "button": "Download {{name}}",
+    "refresh": "Generate new download links"
   }
 }

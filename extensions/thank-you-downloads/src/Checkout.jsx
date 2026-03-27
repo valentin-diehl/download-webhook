@@ -36,21 +36,21 @@ function DownloadSection() {
   );
 }
 
-function fetchWithRetry(url, setDownloads, attempts = 0) {
+function fetchWithRetry(url, onSuccess, attempts = 0) {
   fetch(url)
     .then(r => r.json())
     .then(data => {
       if (data.error === 'Order not found' && attempts < MAX_ATTEMPTS) {
-        setTimeout(() => fetchWithRetry(url, setDownloads, attempts + 1), RETRY_DELAY_MS);
+        setTimeout(() => fetchWithRetry(url, onSuccess, attempts + 1), RETRY_DELAY_MS);
         return;
       }
-      setDownloads(data.downloads ?? []);
+      onSuccess(data.downloads ?? []);
     })
     .catch(() => {
       if (attempts < MAX_ATTEMPTS) {
-        setTimeout(() => fetchWithRetry(url, setDownloads, attempts + 1), RETRY_DELAY_MS);
+        setTimeout(() => fetchWithRetry(url, onSuccess, attempts + 1), RETRY_DELAY_MS);
       } else {
-        setDownloads([]);
+        onSuccess([]);
       }
     });
 }
