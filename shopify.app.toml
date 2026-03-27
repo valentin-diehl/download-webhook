@@ -1,0 +1,21 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "704923fba090c5a9020a1b1164fa8674"
+name = "Download Webhook"
+application_url = "https://example.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-01"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_orders,write_orders,read_products"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ "https://webhook.site/8f5f9688-9b56-4fdb-9954-8677c3fa60c4" ]

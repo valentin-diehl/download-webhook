@@ -1,0 +1,14 @@
+api_version = "2026-01"
+
+[[extensions]]
+name = "thank-you-downloads"
+handle = "thank-you-downloads"
+type = "ui_extension"
+uid = "7b6e438f-a1cc-2763-f75f-615d7ce0c60000a5ee27"
+
+[[extensions.targeting]]
+module = "./src/Checkout.jsx"
+target = "purchase.thank-you.block.render"
+
+[extensions.capabilities]
+network_access = true

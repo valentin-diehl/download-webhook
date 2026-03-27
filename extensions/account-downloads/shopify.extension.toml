@@ -1,0 +1,14 @@
+api_version = "2026-01"
+
+[[extensions]]
+name = "account-downloads"
+handle = "account-downloads"
+type = "ui_extension"
+uid = "6d644ee5-6606-44b5-9921-2128839fb8d5ece5997c"
+
+[[extensions.targeting]]
+module = "./src/OrderStatusBlock.jsx"
+target = "customer-account.order-status.block.render"
+
+[extensions.capabilities]
+network_access = true
