@@ -25,20 +25,26 @@ function isExpired(url) {
 
 // Handles both old {downloads:[]} and new {products:[]} worker response formats.
 function normaliseResponse(data) {
-  if (data.products) return data.products;
-  if (data.downloads) {
+  let products;
+  if (data.products) {
+    products = data.products;
+  } else if (data.downloads) {
     const map = new Map();
     for (const d of data.downloads) {
       if (!map.has(d.name)) map.set(d.name, { title: d.name, image: null, files: [] });
       map.get(d.name).files.push({ filename: d.filename ?? d.name, url: d.url });
     }
-    return [...map.values()];
+    products = [...map.values()];
+  } else {
+    products = [];
   }
-  return [];
+  return { products, license: data.license || null };
 }
 
-function anyExpired(products) {
-  return products.some(p => p.files.some(f => isExpired(f.url)));
+function anyExpired(products, license) {
+  const filesExpired = products.some(p => p.files.some(f => isExpired(f.url)));
+  const licenseExpired = license ? isExpired(license) : false;
+  return filesExpired || licenseExpired;
 }
 
 function getOrderId() {
@@ -52,13 +58,15 @@ function DownloadSection() {
   const [products, setProducts] = useState(null);
   const [expired, setExpired] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [license, setLicense] = useState(null);
 
   useEffect(() => {
     const id = getOrderId();
     if (!id) return;
-    fetchWithRetry(`${WORKER_URL}/downloads?order_id=${id}`, (data) => {
-      setProducts(data);
-      setExpired(anyExpired(data));
+    fetchWithRetry(`${WORKER_URL}/downloads?order_id=${id}`, (result) => {
+      setProducts(result.products);
+      setLicense(result.license);
+      setExpired(anyExpired(result.products, result.license));
     });
   }, []);
 
@@ -66,7 +74,7 @@ function DownloadSection() {
   useEffect(() => {
     if (!products?.length || expired) return;
     const interval = setInterval(() => {
-      if (anyExpired(products)) setExpired(true);
+      if (anyExpired(products, license)) setExpired(true);
     }, 10_000);
     return () => clearInterval(interval);
   }, [products, expired]);
@@ -75,19 +83,19 @@ function DownloadSection() {
     const id = getOrderId();
     if (!id) return;
     setRefreshing(true);
-    fetchWithRetry(`${WORKER_URL}/downloads?order_id=${id}&refresh=1`, (data) => {
-      if (data.length) {
-        setProducts(data);
-        setExpired(anyExpired(data));
+    fetchWithRetry(`${WORKER_URL}/downloads?order_id=${id}&refresh=1`, (result) => {
+      if (result.products.length) {
+        setProducts(result.products);
+        setLicense(result.license);
+        setExpired(anyExpired(result.products, result.license));
       }
       setRefreshing(false);
     });
   }, []);
 
-  const allUrls = useMemo(
-    () => (products ?? []).flatMap(p => p.files.map(f => f.url)),
-    [products],
-  );
+  const allUrls = useMemo(() => {
+    return (products ?? []).flatMap(p => p.files.map(f => f.url));
+  }, [products]);
 
   // Stagger opens to avoid popup-blockers dropping concurrent window.open calls.
   const downloadAll = useCallback(() => {
@@ -105,7 +113,7 @@ function DownloadSection() {
 
   return (
     <s-stack direction="block" gap="base">
-      <s-heading level="1">{heading}</s-heading>
+      <s-heading>{heading}</s-heading>
 
       {!expired && (
         <s-stack direction="block" gap="small-200">
@@ -142,10 +150,24 @@ function DownloadSection() {
         </s-button>
       )}
 
-      {!expired && allUrls.length > 1 && (
-        <s-button variant="primary" onClick={downloadAll} inlineSize="fill">
-          {translate('downloads.download_all')}
-        </s-button>
+      {!expired && (
+        <s-stack direction="block" gap="small-300">
+          {allUrls.length > 1 && (
+            <s-button variant="primary" onClick={downloadAll} inlineSize="fill">
+              {translate('downloads.download_all')}
+            </s-button>
+          )}
+          <s-grid gridTemplateColumns="1fr 1fr" gap="small-300">
+            {license && (
+              <s-button variant="secondary" onClick={() => window.open(license, '_blank')} inlineSize="fill">
+                {translate('downloads.download_license')}
+              </s-button>
+            )}
+            <s-button variant="secondary" inlineSize="fill">
+              {translate('downloads.download_invoice')}
+            </s-button>
+          </s-grid>
+        </s-stack>
       )}
     </s-stack>
   );
@@ -154,7 +176,7 @@ function DownloadSection() {
 function fetchWithRetry(url, onSuccess, attempts = 0) {
   fetch(url)
     .then(r => {
-      if (!r.ok) throw new Error(r.status);
+      if (!r.ok) throw new Error(String(r.status));
       return r.json();
     })
     .then(data => {
@@ -168,7 +190,7 @@ function fetchWithRetry(url, onSuccess, attempts = 0) {
       if (attempts < MAX_ATTEMPTS) {
         setTimeout(() => fetchWithRetry(url, onSuccess, attempts + 1), RETRY_DELAY_MS);
       } else {
-        onSuccess([]);
+        onSuccess({ products: [], license: null });
       }
     });
 }
