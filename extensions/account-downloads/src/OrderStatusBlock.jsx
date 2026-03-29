@@ -38,7 +38,7 @@ function normaliseResponse(data) {
   } else {
     products = [];
   }
-  return { products, license: data.license || null };
+  return { products, license: data.license || null, invoice: data.invoice || null };
 }
 
 function anyExpired(products, license) {
@@ -59,6 +59,7 @@ function DownloadSection() {
   const [expired, setExpired] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [license, setLicense] = useState(null);
+  const [invoice, setInvoice] = useState(null);
 
   useEffect(() => {
     const id = getOrderId();
@@ -66,6 +67,7 @@ function DownloadSection() {
     fetchWithRetry(`${WORKER_URL}/downloads?order_id=${id}`, (result) => {
       setProducts(result.products);
       setLicense(result.license);
+      setInvoice(result.invoice);
       setExpired(anyExpired(result.products, result.license));
     });
   }, []);
@@ -87,6 +89,7 @@ function DownloadSection() {
       if (result.products.length) {
         setProducts(result.products);
         setLicense(result.license);
+        setInvoice(result.invoice);
         setExpired(anyExpired(result.products, result.license));
       }
       setRefreshing(false);
@@ -163,9 +166,11 @@ function DownloadSection() {
                 {translate('downloads.download_license')}
               </s-button>
             )}
-            <s-button variant="secondary" inlineSize="fill">
-              {translate('downloads.download_invoice')}
-            </s-button>
+            {invoice && (
+              <s-button variant="secondary" onClick={() => window.open(invoice, '_blank')} inlineSize="fill">
+                {translate('downloads.download_invoice')}
+              </s-button>
+            )}
           </s-grid>
         </s-stack>
       )}

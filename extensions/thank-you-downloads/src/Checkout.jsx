@@ -5,6 +5,8 @@ import { useState, useEffect } from 'preact/hooks';
 const WORKER_URL = 'https://downloads.new-renew.shop';
 const MAX_ATTEMPTS = 6;
 const RETRY_DELAY_MS = 2500;
+const INVOICE_POLL_ATTEMPTS = 8;
+const INVOICE_POLL_DELAY_MS = 2500;
 
 export default async () => {
   render(<DownloadSection />, document.body);
@@ -25,12 +27,13 @@ function normaliseResponse(data) {
   } else {
     products = [];
   }
-  return { products, license: data.license || null };
+  return { products, license: data.license || null, invoice: data.invoice || null };
 }
 
 function DownloadSection() {
   const [products, setProducts] = useState(null);
   const [license, setLicense] = useState(null);
+  const [invoice, setInvoice] = useState(null);
 
   useEffect(() => {
     const orderGid = shopify.orderConfirmation?.value?.order?.id;
@@ -41,8 +44,33 @@ function DownloadSection() {
     fetchWithRetry(`${WORKER_URL}/downloads?order_id=${numericId}`, (result) => {
       setProducts(result.products);
       setLicense(result.license);
+      setInvoice(result.invoice);
+
+      // Invoice PDF may not be in R2 yet (webhook still processing).
+      // Poll a few times until it appears.
+      if (result.products.length && !result.invoice) {
+        pollForInvoice(numericId, 0);
+      }
     });
   }, []);
+
+  function pollForInvoice(numericId, attempt) {
+    if (attempt >= INVOICE_POLL_ATTEMPTS) return;
+    setTimeout(() => {
+      fetch(`${WORKER_URL}/downloads?order_id=${numericId}&refresh=1`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data) return;
+          const norm = normaliseResponse(data);
+          if (norm.invoice) {
+            setInvoice(norm.invoice);
+          } else {
+            pollForInvoice(numericId, attempt + 1);
+          }
+        })
+        .catch(() => pollForInvoice(numericId, attempt + 1));
+    }, INVOICE_POLL_DELAY_MS);
+  }
 
   if (!products?.length) return null;
 
@@ -87,9 +115,13 @@ function DownloadSection() {
               </s-button>
             </s-clickable>
           )}
-          <s-button variant="secondary" inlineSize="fill">
-            {translate('downloads.download_invoice')}
-          </s-button>
+          {invoice && (
+            <s-clickable href={invoice} target="_blank">
+              <s-button variant="secondary" inlineSize="fill">
+                {translate('downloads.download_invoice')}
+              </s-button>
+            </s-clickable>
+          )}
       </s-grid>
     </s-stack>
   );
