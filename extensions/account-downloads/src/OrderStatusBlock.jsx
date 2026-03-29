@@ -153,26 +153,26 @@ function DownloadSection() {
         </s-button>
       )}
 
-      {!expired && (
-        <s-stack direction="block" gap="small-300">
-          {allUrls.length > 1 && (
-            <s-button variant="primary" onClick={downloadAll} inlineSize="fill">
-              {translate('downloads.download_all')}
+      {!expired && allUrls.length > 1 && (
+        <s-button variant="primary" onClick={downloadAll} inlineSize="fill">
+          {translate('downloads.download_all')}
+        </s-button>
+      )}
+
+      {/* License and invoice tokens never expire — always show these buttons */}
+      {(license || invoice) && (
+        <s-grid gridTemplateColumns="1fr 1fr" gap="small-300">
+          {license && (
+            <s-button variant="secondary" onClick={() => window.open(license, '_blank')} inlineSize="fill">
+              {translate('downloads.download_license')}
             </s-button>
           )}
-          <s-grid gridTemplateColumns="1fr 1fr" gap="small-300">
-            {license && (
-              <s-button variant="secondary" onClick={() => window.open(license, '_blank')} inlineSize="fill">
-                {translate('downloads.download_license')}
-              </s-button>
-            )}
-            {invoice && (
-              <s-button variant="secondary" onClick={() => window.open(invoice, '_blank')} inlineSize="fill">
-                {translate('downloads.download_invoice')}
-              </s-button>
-            )}
-          </s-grid>
-        </s-stack>
+          {invoice && (
+            <s-button variant="secondary" onClick={() => window.open(invoice, '_blank')} inlineSize="fill">
+              {translate('downloads.download_invoice')}
+            </s-button>
+          )}
+        </s-grid>
       )}
     </s-stack>
   );
